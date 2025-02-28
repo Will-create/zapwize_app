@@ -1,0 +1,226 @@
+<style>
+	.dataform table.columns { width: 100%; font-size: 13px; }
+	.dataform table.columns td { padding: 6px 0; border-top: 1px solid #E0E0E0; }
+	.dataform table.columns td:last-child { padding-left: 8px; padding-right: 8px; }
+	.dataform table.columns td:first-child { width: 30%; vertical-align: top; }
+	.dataform table.columns td.modified { background-color: #F8F8F8; }
+	.dataform .value { min-width: 10px; position: relative; display: inline-block; outline: 0; min-height: 12px; }
+	.dataform .checkbox { width: 16px; height: 16px; text-align: center; line-height: 15px; border: 1px solid #E0E0E0; border-radius: 3px; cursor: pointer; font-size: 11px; background-color: #FFF; }
+	.dataform .checkbox i { visibility: hidden; color: var(--color); }
+	.dataform .checkbox.checked { background: var(--color); border-color: var(--color); }
+	.dataform .checkbox.checked i { visibility: visible; color: #FFF; }
+	.dataform .multiline { position: relative; display: inline-block; white-space: break-spaces; }
+</style>
+
+<ui-plugin path="~PATH~ dataform" config="init:?/init" class="dataform">
+	<div class="toolbar toolbar-bg">
+		<button class="exec" data-exec="?/submit"><ui-bind path="?.modified" config="enabled" disabled></ui-bind><i class="ti ti-save"></i>@(Save)</button>
+		<button class="exec" data-exec="?/copyjson"><i class="ti ti-code"></i>@(Copy JSON)</button>
+	</div>
+	<ui-component name="viewbox" path="null" config="parent:auto;margin:60">
+		<div class="padding">
+			<ui-bind path="?.meta" config="template;show" class="m block">
+				<script type="text/html">
+					<div class="keyvalue">
+						<span>@(ID)</span>
+						<div><span class="exec" data-exec="?/copy"><i class="ti ti-copy"></i></span><span class="badge badge-gray"><code>{{ value.id }}</code></span></div>
+					</div>
+				</script>
+			</ui-bind>
+			<ui-bind path="?.columns" config="template" class="block">
+				<script type="text/html">
+					<table class="columns">
+						<tbody>
+						{{ foreach m in value }}
+							<tr title="{{ m.id }}">
+								<td>{{ m.name }}</td>
+								<td>
+									{{ if m.type === 'date' }}
+									<span data-id="{{ m.id }}" class="value exec" data-exec="?/date">{{ m.value | format('[ts]') | empty }}</span>
+									{{ else if m.type === 'boolean' }}
+									<span data-id="{{ m.id }}" class="value exec checkbox{{ if m.value }} checked{{ fi }}" data-exec="?/checkbox"><i class="ti ti-check"></i></span>
+									{{ else }}
+									<span data-id="{{ m.id }}" class="value edit{{ if m.id === 'name' }} b{{ fi }}" data-edit="exec:?/save;selectall:1;{{ if m.required }}required:1{{ fi }}">{{ if m.value == null || m.value === '' }}---{{ else }}{{ m.value }}{{ fi }}</span>
+									{{ fi }}
+								</td>
+							</tr>
+						{{ end }}
+						</tbody>
+					</table>
+				</script>
+			</ui-bind>
+		</div>
+	</ui-component>
+</ui-plugin>
+
+<script>
+	PLUGIN('? dataform', function(exports) {
+
+		var ID;
+		var Type;
+		var caller;
+
+		exports.init = function(scope, el) {
+			caller = exports.caller;
+			ID = ATTRD(el).split('-');
+			exports.tapi('db_read ERROR', { id: ID[0] }, function(response) {
+				Type = response;
+				exports.makeform();
+			});
+		};
+
+		exports.makeform = function() {
+
+			var columns = CLONE(Type.columns);
+
+			columns = columns.remove(n => n.array === true);
+			columns.unshift({ id: 'name', name: '@(Name)', value: '', type: 'string', required: 1 });
+
+			exports.set('modified', false);
+
+			for (var item of columns) {
+				switch (item.type) {
+					case 'number':
+						item.prev = item.value = item.default || 0;
+						break;
+					case 'boolean':
+						item.prev = item.value = item.default || false;
+						break;
+					case 'date':
+						item.prev = item.value = item.default == NOOP ? NOW : (item.default || null);
+						break;
+					default:
+						item.prev = item.value = item.default || null;
+						break;
+				}
+			}
+
+			if (ID[1]) {
+				exports.tapi('db_data_read', { id: ID[0], rowid: ID[1] }, ERROR(function(response) {
+					for (var item of columns) {
+						var val = response[item.id];
+						item.prev = val;
+						if (item.type === 'type') {
+							item.text = val ? val.name : null;
+							item.value = val ? val.id : null;
+						} else
+							item.value = val;
+					}
+					exports.set('meta', response);
+					exports.set('columns', columns);
+				}, () => SETTER('windows/close', 'databasedetail_' + ID.join(''))));
+			} else
+				exports.set('columns', columns);
+		};
+
+		exports.detail = function(el) {
+			var model = exports.model;
+			var id = ATTRD(el);
+			var attr = model.columns.findItem('id', id);
+			if (attr && attr.value)
+				EXEC('*/detail', attr.typeid, attr.value);
+		};
+
+		exports.submit = function() {
+
+			var close = function() {
+				SETTER('windows/close', 'databasedetail_' + ID.join(''));
+			};
+
+			if (!exports.element.find('.modified').length) {
+				close();
+				return;
+			}
+
+			var model = exports.model;
+			var data = {};
+			var is = false;
+
+			data = {};
+			data.id = ID[1];
+
+			for (var item of model.columns) {
+				if (item.prev !== item.value) {
+					data[item.id] = item.value;
+					item.prev = item.value;
+					is = true;
+				}
+			}
+
+			if (!is) {
+				close();
+				return;
+			}
+
+			exports.tapi('db_data_save ERROR', { id: ID[0], data: data }, function() {
+				var key = 'database_' + ID[0];
+				SETTER('windows/close', 'databasedetail_' + ID.join(''));
+				W[key] && NUL(key + '.response');
+			});
+		};
+
+		exports.save = function(response, next) {
+			var model = exports.model;
+			var id = ATTRD(response.element);
+			var attr = model.columns.findItem('id', id);
+			attr.value = response.value;
+			next(true);
+			response.element.closest('td').tclass('modified', attr.value !== attr.prev);
+			exports.validate();
+		};
+
+		exports.checkbox = function(el) {
+			var model = exports.model;
+			var id = ATTRD(el);
+			var attr = model.columns.findItem('id', id);
+			el.tclass('checked');
+			attr.value = el.hclass('checked');
+			el.closest('td').tclass('modified', attr.value !== attr.prev);
+			exports.validate();
+		};
+
+		exports.date = function(el) {
+			var model = exports.model;
+			var id = ATTRD(el);
+			var attr = model.columns.findItem('id', id);
+			var opt = {};
+			opt.element = el;
+			opt.callback = function(val) {
+				attr.value = val;
+				el.html(val.format('[ts]'));
+				el.closest('td').tclass('modified', attr.value !== attr.prev);
+				exports.validate();
+			};
+			SETTER('datepicker/show', opt);
+		};
+
+		exports.copyjson = function() {
+
+			var model = exports.model;
+			var data = {};
+
+			if (model.meta) {
+				data.id = model.meta.id;
+				data.dtcreated = model.meta.dtcreated;
+				data.dtupdated = model.meta.dtupdated;
+			}
+
+			for (var attr of model.columns)
+				data[attr.id] = attr.value;
+
+			SETTER('clipboard/copy', JSON.stringify(data, null, '\t'));
+			SETTER('notify/success', '@(Copied)');
+		};
+
+		exports.validate = function() {
+			exports.set('modified', exports.element.find('.modified').length > 0);
+		};
+
+		exports.copy = function(el) {
+			SETTER('clipboard/copy', el.parent().find('code').text());
+			SETTER('notify/success', '@(Copied)');
+		};
+
+	});
+
+</script>

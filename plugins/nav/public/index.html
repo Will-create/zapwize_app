@@ -1,0 +1,124 @@
+<style>
+	.CLASS .listing2 figure { margin-bottom: 10px; }
+</style>
+
+<ui-plugin class="CLASS">
+
+	<div class="toolbar toolbar-bg">
+		<div class="pull-right">
+			<button class="exec" data-exec="?/create"><i class="ti ti-plus-circle"></i>@(Create)</button>
+			<button class="exec" data-exec="?/refresh"><i class="ti ti-refresh"></i>@(Refresh)</button>
+		</div>
+		<div class="search">
+			<ui-component name="searchinput" path="?.search" config="autofocus:1;placeholder:@(Search)"></ui-component>
+		</div>
+	</div>
+
+	<ui-component name="empty" path="?.items" config="parent:window;margin:60" class="invisible">
+
+		<script type="text/html">
+			<div>@(The database doesn't contain any navigation)</div>
+			<div class="mt5">
+				<span class="link exec" data-exec="?/create"><i class="ti ti-plus-circle green mr5"></i>@(Create navigation)</span>
+			</div>
+		</script>
+
+		<ui-component name="viewbox" path="common.page" config="parent:window;margin:60;scrollbar:1;visibleY:1" class="invisible">
+			<div class="auto" style="max-width:1400px">
+				<div class="padding" style="margin-top:8px">
+					<ui-component name="search" path="?.search" config="selector:figure">
+						<ui-component name="movable" config="selector:figure;exec:?/move">
+							<ui-bind path="?.items" config="template" class="block">
+								<script type="text/html">
+									<div class="listing2">
+										{{ foreach m in value }}
+										<figure data-id="{{ m.id }}" data-search="{{ m.name }}" draggable="true">
+											<section>
+												<div class="controls">
+													<span class="exec" data-exec="?/edit" data-prevent="true" title="@(Edit)"><i class="ti ti-pencil"></i></span>
+													<span class="exec" data-exec="?/options" data-prevent="true" title="@(options)"><i class="ti ti-cog"></i></span>
+												</div>
+												<div>
+													<i class="{{ m.icon | empty('ti ti-navicon') }} icon mr10"></i>
+													{{ m.name }}
+												</div>
+											</section>
+										</figure>
+										{{ end }}
+									</div>
+								</script>
+							</ui-bind>
+						</ui-component>
+					</ui-component>
+				</div>
+			</div>
+		</ui-component>
+
+	</ui-component>
+
+</ui-plugin>
+
+<ui-component name="importer" path="common.form" config="if:formnav;url:/~ID~/form.html"></ui-component>
+
+<script>
+
+	PLUGIN(function(exports) {
+
+		exports.reload = function(id) {
+			exports.refresh();
+		};
+
+		exports.refresh = function() {
+			exports.tapi('nav_list', 'items');
+		};
+
+		exports.edit = function(el) {
+			var id = ATTRD(el);
+			exports.tapi('nav_read ERROR', { id: id }, function(response) {
+				SET('formnav @reset', response);
+				SET('*form', 'formnav');
+			});
+		};
+
+		exports.options = function(el) {
+			var items = exports.model.items;
+			var id = el.attrd2('id');
+			var data = items.findItem('id', id);
+			var opt = {};
+			opt.element = el;
+			opt.align = 'right';
+			opt.items = [];
+			opt.items.push({ id: 'edit', name: '@(Edit)', icon: 'ti ti-pencil' });
+			opt.items.push('-');
+			opt.items.push({ id: 'remove', name: '@(Remove)', icon: 'ti ti-trash red' });
+			opt.callback = function(item) {
+
+				if (item.id === 'edit') {
+					exports.edit(id);
+					return;
+				}
+
+				if (item.id === 'remove') {
+					SETTER('approve/show', '@(Are you sure you want to remove the "{name}" navigation?)'.arg(data, 'escape'), '"ti ti-trash" @(Remove)', () => exports.tapi('nav_remove ERROR', { id: id }, exports.refresh));
+					return;
+				}
+
+			};
+			SETTER('menu/show', opt);
+		};
+
+		exports.move = function(arr) {
+			var builder = [];
+			for (var el of arr)
+				builder.push(ATTRD(el));
+			exports.tapi('nav_sort ERROR', { id: builder }, () => EXEC('*/refresh_apps'));
+		};
+
+		exports.create = function() {
+			SET('formnav @default', {});
+			SET('*form', 'formnav');
+		};
+
+	});
+
+</script>

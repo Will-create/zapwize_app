@@ -1,0 +1,242 @@
+<ui-plugin path="~PATH~ datagrid" config="init:?/init">
+	<div class="toolbar toolbar-bg" style="padding-left:20px">
+		<div class="pull-left mt2">
+			<span class="exec mr5" data-exec="?/copy" title="@(Copy ID to the clipboard)"><i class="ti ti-copy"></i></span> <span class="badge badge-gray"><code class="b" data-bind="?.id__text:'db'+ value"></code></span>
+		</div>
+		<nav class="pull-right ml10">
+			<ui-bind path="?.checked" config="disabled .selection:!value || !value.length">
+				<button class="exec selection" data-exec="?/copyclipboard" disabled><i class="ti ti-copy"></i>@(Copy to clipboard)</button>
+				<button class="exec" data-exec="?/refresh"><i class="ti ti-sync"></i>@(Refresh)</button>
+				<button class="exec b" data-exec="?/create"><i class="ti ti-plus-circle green"></i>@(Create)</button>
+				<button class="exec selection" data-exec="?/remove"  disabled><i class="ti ti-trash red"></i>@(Remove)</button>
+			</ui-bind>
+		</nav>
+	</div>
+	<div class="grid"></div>
+</ui-plugin>
+
+<script>
+	PLUGIN('? datagrid', function(exports) {
+
+		var ID;
+		var Element;
+		var Type;
+
+		exports.init = function(scope, el) {
+			Element = el;
+			ID = ATTRD(el);
+			exports.tapi('db_read', { id: ID }, function(response) {
+				if (ERROR(response)) {
+					// close
+				} else {
+					Type = response;
+					exports.makegrid();
+				}
+			});
+		};
+
+		exports.makegrid = function() {
+
+			var data = prepare(Type);
+			var columns = [];
+
+
+			for (var col of data.head) {
+
+				var obj = {};
+				obj.name = col.id;
+				obj.text = col.name;
+				obj.width = 150;
+
+				obj.title = (col.name + ' - ' + col.id);
+				obj.type = 'string';
+
+				switch (col.id) {
+					case 'id':
+						obj.width = 110;
+						obj.monospace = 1;
+						break;
+					case 'name':
+						obj.width = 200;
+						break;
+				}
+
+				obj.text += ' <b style=\\"font-weight:normal\\">' + col.id + '</b>';
+
+				switch (col.type) {
+					case 'boolean':
+					case 'number':
+						obj.type = col.type;
+						obj.width = 120;
+						break;
+					case 'date':
+						obj.type = col.type;
+						obj.width = 150;
+						obj.format = '[ts]';
+						break;
+					}
+
+				var str = '';
+
+				for (var key in obj) {
+					var val = obj[key];
+					var type = typeof(val);
+					str += (str ? ',' : '') + key + (type === 'number' || type === 'boolean' ? (':' + val) : (':"' + val + '"'));
+				}
+
+				columns.push('{' + str + '}');
+			}
+
+			exports.set('id', ID);
+			Element.find('.grid').append(('<ui-component name="datagrid" path="{0}.response" config="noborder:1;height:window;margin:120;checked:?.checked;exec:?/filter;click:?/detail" class="invisible"><scri' + 'pt type="text/html">[{1}]</scr' + 'ipt></ui-component>').format(exports.name, columns.join(',')));
+		};
+
+		exports.update = function() {
+			EXEC('*/update', ID);
+		};
+
+		exports.refresh = function() {
+			exports.nul('response');
+		};
+
+		exports.detail = function(el) {
+
+			var id = el ? ATTRD(el) : '';
+			var win = {};
+
+			win.id = 'databasedetail_' + Type.id + id;
+
+			if (common.windows.findItem('id', win.id)) {
+				SETTER('windows/focus', win.id);
+				return;
+			}
+
+			win.cachekey = 'detail' + Type.id;
+			win.offset = { x: 200, y: 100, width: 500, height: 500, minwidth: 400, minheight: 300 };
+			win.actions = { move: true, close: true, resize: true, maximize: true, minimize: false, autosave: true };
+			win.title = '<i class="{icon} mr5"></i>{name}'.args(Type);
+			win.html = '<ui-import config="url:/_databases/data-form.html;path:{1}" data-id="{0}-{2}"></ui-import>'.format(Type.id, win.id, id);
+			win.destroy = function() {
+				delete W[win.id];
+			};
+
+			PUSH('*windows', win);
+		};
+
+		exports.remove = function() {
+			var model = exports.model;
+			SETTER('approve/show', '@(Are you sure you want to remove selected ({0}x) records?)'.format(model.checked.length), '"ti ti-trash" @(Remove)', function() {
+				model.checked.wait(function(item, next) {
+					exports.tapi('db_data_remove', { id: ID, rowid: item.id }, next);
+				}, () => exports.nul('response'));
+			});
+		};
+
+		exports.copyclipboard = function(el) {
+			var opt = {};
+			opt.element = el;
+			opt.items = [];
+			opt.items.push({ id: 'copyxls', name: '@(To Excel)', icon: 'ti ti-table-alt' });
+			opt.items.push({ id: 'copycsv', name: '@(To CSV)', icon: 'ti ti-file' });
+			opt.callback = function(sel) {
+				switch (sel.id) {
+					case 'copyxls':
+						exports.copytxt('\t');
+						break;
+					case 'copycsv':
+						exports.copytxt(',');
+						break;
+				}
+			};
+			SETTER('menu/show', opt);
+		};
+
+		exports.copy = function(el) {
+			SETTER('clipboard/copy', el.parent().find('code').text());
+			SETTER('notify/success', '@(Copied)');
+		};
+
+		exports.copyid = function(el) {
+			SETTER('clipboard/copy', el.text());
+			SETTER('notify/success', '@(Copied)');
+		};
+
+		exports.copytxt = function(delimiter) {
+
+			SETTER('loading/show');
+
+			var model = exports.model;
+			var arr = [];
+			var data = prepare(Type);
+
+			var tmp = [];
+			for (var col of data.head)
+				tmp.push('"{0}"'.format(col.name));
+
+			arr.push(tmp.join(delimiter));
+
+			model.checked.wait(function(item, next) {
+				exports.tapi('db_data_export ERROR', { id: ID, rowid: item.id }, function(response) {
+					tmp = [];
+					for (var col of data.head) {
+						var val = response[col.id];
+						if (val instanceof Date) {
+							tmp.push('"{0}"'.format(val.format('yyyy-MM-dd HH:mm')));
+						} else {
+							switch (typeof(val)) {
+								case 'string':
+									tmp.push('"{0}"'.format(val.replace(/\"/, '""')));
+									break;
+								case 'number':
+								case 'boolean':
+									tmp.push(val + '');
+									break;
+								default:
+									tmp.push(val == null ? '' : '<object>');
+									break;
+							}
+						}
+					}
+					arr.push(tmp.join(delimiter));
+					next();
+				});
+			}, function() {
+				SETTER('loading/hide');
+				SETTER('notify/success', '@(Copied)');
+				SETTER('clipboard/copy', arr.join('\n'));
+			});
+
+		};
+
+		exports.create = function() {
+			exports.detail('');
+		};
+
+		exports.filter = function(gtype, filter, sort, page) {
+			if (!filter)
+				filter = {};
+			filter.sort = sort;
+			filter.page = page;
+			exports.tapi(QUERIFY('db_data_list', filter), { id: ID }, function(response) {
+				var data = prepare(Type, response.items);
+				response.items = data.body;
+				exports.set('response', response, gtype === 'refresh' ? 'noscroll' : null);
+			});
+		};
+
+		function prepare(type, items) {
+
+			var response = {};
+			response.head = [{ id: 'id', name: '@(ID)' }, { id: 'name', name: '@(Name)' }];
+			response.body = items;
+
+			for (var m of type.columns)
+				response.head.push(m);
+
+			response.head.push({ id: 'dtcreated', name: '@(Created)', type: 'date' });
+
+			return response;
+		}
+
+	});
+</script>

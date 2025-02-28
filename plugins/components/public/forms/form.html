@@ -1,0 +1,36 @@
+<ui-component name="box" path="*form" config="if:CLASS;title:@(Edit file);icon:ti ti-code;autofocus:true;reload:?/reload;scrollbar:0;submit:?/submit;width:2200" class="hidden CLASS" plugin="CLASS">
+	<div>
+		<ui-component name="cloudeditorsimple" path="?.body" config="realtime:1;minheight:300;parent:.ui-box;margin:126;$assign:?|editor" style="border:0"></ui-component>
+	</div>
+	<nav>
+		<button name="submit"><i class="ti ti-check-circle"></i>@(SUBMIT)</button>
+		<button name="cancel">@(Cancel)</button>
+	</nav>
+</ui-component>
+
+<script>
+
+	PLUGIN(function(exports) {
+
+		var caller;
+
+		exports.reload = function(form) {
+			caller = exports.caller;
+			var model = exports.model;
+			form.reconfigure({ title: '@(Edit:) ' + model.path });
+		};
+
+		exports.submit = function(hide) {
+			var model = exports.model;
+			exports.editor.save(function(response) {
+				model.body = response;
+				exports.tapi('components_update ERROR', model, function() {
+					hide();
+					caller.exec('refresh');
+				});
+			});
+		};
+
+	});
+
+</script>

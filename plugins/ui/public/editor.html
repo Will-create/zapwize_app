@@ -1,0 +1,60 @@
+<ui-plugin>
+	<ui-component name="designer" path="?" config="render:?/preview;publish:?/publish;save:?/save;groups:pluginui.groups;codes:pluginui.codes;apps:pluginui.apps;views:pluginui.views;close:?/close;left:201;top:0;margin:60"></ui-component>
+</ui-plugin>
+
+<script>
+
+	PLUGIN(function(exports) {
+
+		var saved;
+
+		exports.element.RECONFIGURE(true, 'designer', { upload: location.origin + '/upload/' + common.openplatform });
+
+		exports.preview = function(response) {
+			var id = response.id;
+			var key = 'preview' + id;
+
+			if (common.tabs.findItem('id', key)) {
+				PLUGINS[key].init();
+				SETTER('parts/focus', key);
+				return;
+			}
+
+			SET('{0} @hideloading'.format(key), response);
+			PUSH('*tabs', { id: key, name: '@(Preview): ' + response.name, html: '<ui-import config="url:/_ui/preview.html;path:{0};init:{0}/init;reevaluate:1" data-id="{0}"></ui-import>'.format(key) });
+		};
+
+		exports.save = function(data) {
+			saved = data;
+			// Editor will call .publish() method automatically (data.editor.autopublish)
+			if (!data.editor.autopublish)
+				exports.publish();
+		};
+
+		exports.close = function() {
+			var model = exports.model;
+			SETTER('parts/close', model.id);
+		};
+
+		exports.destroy = function() {
+			saved = null;
+		};
+
+		exports.publish = function(data) {
+
+			if (!saved)
+				return;
+
+			SETTER('sounds/play', 'badge');
+			SETTER('notify/success', '@(UI design "{name}" has been saved)'.args(data, 'escape'));
+
+			saved.compiled = data ? JSON.stringify(data) : null;
+			exports.tapi('ui_save @showloading ERROR', { data: saved }, function() {
+				EXEC('pluginui/refresh', true, () => SETTER('designer/refresh', exports.name));
+			});
+
+		};
+
+	});
+
+</script>

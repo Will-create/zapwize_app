@@ -1,0 +1,323 @@
+@{layout('')}
+@{title(config.name)}
+
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<meta http-equiv="X-UA-Compatible" content="IE=11" />
+	<meta name="format-detection" content="telephone=no" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<meta name="robots" content="all,follow" />
+	<link href="@{'%cdn'}/spa.min@19.css" rel="stylesheet" />
+	<script src="@{'%cdn'}/spa.min@19.js"></script>
+	<script src="@{'%cdn'}/uibuilder.min@1.js"></script>
+	<script src="@{REPO.ui}"></script>
+	@{import('meta', 'head', 'default.css', 'default.js', 'favicon.ico')}
+</head>
+<body class="invisible">
+
+	<ui-component name="exec"></ui-component>
+	<ui-component name="locale" config="requests:1;language:@{user.language}"></ui-component>
+	<ui-component name="errorhandler"></ui-component>
+	<ui-component name="loading" config="style:2" class="hidden"></ui-component>
+	<ui-component name="edit"></ui-component>
+	<ui-component name="windows" path="common.windows"></ui-component>
+	<ui-component name="title" path="common.title"></ui-component>
+
+	<ui-component name="LAZY menu"></ui-component>
+	<ui-component name="LAZY prompt"></ui-component>
+	<ui-component name="LAZY message" config="style:2"></ui-component>
+	<ui-component name="LAZY approve"></ui-component>
+	<ui-component name="LAZY notify" config="position:bottom right"></ui-component>
+	<ui-component name="LAZY directory" config="placeholder:@(Search)"></ui-component>
+	<ui-component name="LAZY icons"></ui-component>
+	<ui-component name="LAZY colorpicker"></ui-component>
+	<ui-component name="LAZY filereader"></ui-component>
+	<ui-component name="LAZY fileuploader"></ui-component>
+	<ui-component name="LAZY clipboard"></ui-component>
+	<ui-component name="LAZY datepicker"></ui-component>
+
+	<header>
+		<ui-bind path="*tabs" config="template:div;delay:100" class="tabs block">
+			<script type="text/html">
+				{{ foreach m in value }}
+					<div class="exec{{ if m.focused }} selected{{ fi }}" data-exec="*/focus" data-id="{{ m.id }}" title="{{ m.name }}">{{ if m.noclose }}<i class="{{ m.icon }}"></i>{{ else }}<i class="ti ti-times exec" data-exec="common/close"></i>{{ fi }}{{ m.name }}</div>
+				{{ end }}
+			</script>
+		</ui-bind>
+	</header>
+
+	<ui-component name="navlayout" path="*menu" config="parent:window;width:200;margin:60" class="invisible">
+		<section>
+			<ui-component name="viewbox" config="parent:window;margin:60">
+
+				<ui-component name="selected" path="*focused" config="selector:a;attr:id">
+					<ui-bind path="*apps" config="show:value && value.length" class="hidden">
+						<ui-bind path="*apps" config="template:a" class="block nav" child="nav">
+							<nav>
+								<script type="text/html">
+									{{ foreach m in value }}
+										<a href="{{ m.url }}" class="jR{{ if m.selected }} selected{{ fi }}" title="{{ m.name }}" data-id="{{ m.id }}"><i class="{{ m.icon | empty('ti ti-caret-right') }} color"></i>{{ m.name }}</a>
+									{{ end }}
+								</script>
+							</nav>
+						</ui-bind>
+						<hr style="margin:0 10px" />
+					</ui-bind>
+
+					<ui-bind path="*plugins" config="template" class="nav block" child="nav">
+						<nav>
+							<script type="text/html">
+								{{ foreach m in value }}
+									{{ if !m.hidden }}
+									<a href="{{ m.url }}" class="jR{{ if m.selected }} selected{{ fi }}" title="{{ m.name }}" data-id="{{ m.id }}"><i class="{{ m.icon }}"></i>{{ m.name }}</a>
+									{{ fi }}
+								{{ end }}
+							</script>
+						</nav>
+					</ui-bind>
+				</ui-component>
+
+				<hr style="margin:0 10px" />
+
+				<div class="nav">
+					<nav class="customnav">
+						<div class="exec" title="@(Refresh apps)" data-exec="*/reload"><i class="ti ti-refresh"></i>@(Refresh)</div>
+					</nav>
+				</div>
+
+			</ui-component>
+		</section>
+
+		<main>
+			<ui-bind path="*tabs" config="visible:value && value.length" class="appmain block">
+				<ui-component name="parts" path="*tabs" config="parent:.appmain;margin:60;focus:*/focused"></ui-component>
+			</ui-bind>
+		</main>
+	</ui-component>
+
+	<form id="uibuildrenderer" method="POST" target="_blank">
+		<input name="data" type="hidden" />
+	</form>
+
+	<div id="uibuilderstash" class="hidden"></div>
+
+	<ui-component name="importer" path="*form2" config="if:formcode;url:/forms/code.html"></ui-component>
+
+	@{json(model, 'pluginsdata')}
+
+	@{if user.iframe}
+	<script src="@{user.iframe}"></script>
+	@{fi}
+
+	<script>
+
+		CONFIG('importer', 'singleton:1');
+
+		var user = null;
+		var common = {};
+
+		common.tabs = [{ id: 'home', name: '@(Home)', icon: 'ti ti-home', focused: true, focus: 'pluginwelcome/refresh', html: '<ui-import config="url:/pages/index.html;path:pluginwelcome"></ui-import>', noclose: true }];
+		common.windows = [];
+		common.name = '@{CONF.name}';
+		common.title = '';
+		common.plugins = PARSE('#pluginsdata');
+		common.ready = false;
+		common.googlemapskey = '@{CONF.googlemapskey}';
+
+		// Injects Token to every API request
+		(function() {
+			var openplatform = NAV.query.openplatform || '';
+			if (openplatform) {
+				var hostname = openplatform.substring(0, openplatform.indexOf('/', 10));
+				openplatform = '?openplatform=' + encodeURIComponent(openplatform);
+			} else
+				common.ready = true;
+			common.openplatform = openplatform;
+			DEF.api = '/admin/' + openplatform;
+			$('body').rclass('invisible', 200);
+		})();
+
+		if (W !== W.top)
+			NAV.custom();
+
+		NAV.clientside('.jR');
+
+		CONFIG('fileuploader', function() {
+			return 'url:/upload/' + common.openplatform;
+		});
+
+		MIDDLEWARE('init', function(next) {
+			if (common.ready)
+				next();
+			else
+				WAIT('*ready', next);
+		});
+
+		MIDDLEWARE('apps', function(next) {
+			WAIT('*apps', next);
+		});
+
+		PLUGIN('*', function(exports) {
+
+			var model = exports.model;
+
+			model.plugins.forEach(function(plugin) {
+				plugin.url = '/' + plugin.id + '/';
+
+				ROUTE(plugin.url, function() {
+					SET('*title', plugin.name);
+					var tab = model.tabs.findItem('id', plugin.id);
+					if (tab) {
+						SETTER('parts/focus', plugin.id);
+					} else
+						exports.push('tabs', { id: plugin.id, url: plugin.url, name: plugin.name, icon: plugin.icon, focus: 'plugin{id}/focus'.args(plugin), html: '<ui-import config="url:/_{id}/index.html;init:plugin{id}/reload;reevaluate:1;path:plugin{id};id:_{id}"></ui-import>'.args(plugin) });
+				}, 'init');
+
+				plugin.routes && plugin.routes.forEach(item => ROUTE('@{#}' + item.url, () => exports.set('page', 'plugin' + plugin.id + item.html), 'init'));
+				plugin.import && $('body').append('<ui-import config="url:{0};id:_{1}"></ui-import>'.format('@{#}/_' + plugin.id + '/' + plugin.import, plugin.id));
+			});
+
+			exports.refresh_apps = function() {
+				exports.tapi('apps', function(response) {
+					for (var m of response) {
+						m.url = '/apps/' + m.id + '/';
+						m.type = 'app';
+						m.selected = NAV.params[0] === m.id;
+					}
+					exports.set('apps', response);
+				});
+			};
+
+			exports.refresh = function() {
+				TAPI('account', 'user');
+			};
+
+			exports.reload = function(el) {
+				el && el.find('.ti').aclass('ti-spin').rclass('ti-spin', 1500);
+				exports.refresh();
+				exports.refresh_apps();
+			};
+
+			exports.focus = function(el) {
+				var id = ATTRD(el);
+				var tab = model.tabs.findItem('id', id);
+				if (tab && tab.url)
+					REDIRECT(id === 'home' ? '/' : tab.url);
+				SETTER('parts/focus', id);
+			};
+
+			exports.focused = function(tab) {
+				if (tab.url && NAV.url !== tab.url)
+					REDIRECT(tab.url);
+			};
+
+			exports.close = function(el, e) {
+				if (e) {
+					e.stopPropagation();
+					e.preventDefault();
+				}
+				SETTER('parts/close', ATTRD(el));
+			};
+
+			exports.reload();
+
+			ON('service', function() {
+				exports.refresh_apps();
+			});
+
+		});
+
+		ROUTE('/', function() {
+			var id = 'welcome';
+			SET('*title', '@(Home)');
+			if (common.tabs.findItem('id', id))
+				SETTER('parts/focus', id);
+		}, 'init');
+
+		ROUTE('/apps/{id}/', function(id) {
+
+			var item = common.apps.findItem('id', id);
+
+			item && SET('*title', item.name);
+
+			if (common.tabs.findItem('id', id)) {
+				SETTER('parts/focus', item.id);
+				return;
+			}
+
+			var remove = function(el) {
+				var root = el.find('.UI_app:first-child');
+				var app = UIBuilder.apps[root.attrd('id')];
+				app && app.remove();
+				SETTER('loading/show');
+				SETTER('loading/hide', 1000);
+			};
+
+			PUSH('*tabs', { id: item.id, name: item.name, focused: true, remove: remove, html: '<ui-import config="url:/_ui/app.html;reevaluate:1;init:app{0}/init;path:app{0}"></ui-import>'.format(item.id) });
+
+		}, 'init, apps');
+
+		ON('@flag showloading', function() {
+			SETTER('loading/show');
+		});
+
+		ON('@flag hideloading', function() {
+			SETTER('loading/hide', 700);
+		});
+
+		// A simple integration for navigation
+		W.APP_INIT = function() {
+
+			common.ready = true;
+
+			APP.on('init', function() {
+
+				var ready = false;
+
+				ON('location', function(url) {
+					if (url === '/' && !ready)
+						ready = true;
+					else
+						APP.path(url);
+				});
+			});
+
+			APP.on('path', function(path) {
+				if (NAV.url !== path)
+					REDIRECT(path);
+			});
+
+		};
+
+		WATCH('*tabs', function(path, value) {
+			var focused = value.findItem('focused', true);
+			var val = focused ? focused.id : '';
+			if (val !== common.focused)
+				SET('*focused', val);
+		});
+
+		// UI Builder implementation
+
+		UIBuilder.clfind = function(clid, search, callback) {
+			if (clid.charAt(0) === '~') {
+				// DB listing
+				TAPI(QUERIFY('cl_db ERROR', search), { id: clid.substring(1) }, callback);
+			} else
+				TAPI(QUERIFY('cl_find ERROR', { search: search }), { id: clid }, callback);
+		};
+
+		UIBuilder.clread = function(clid, id, callback) {
+			TAPI('cl_read ERROR', { id: clid, rowid: id }, callback);
+		};
+
+		UIBuilder.view = function(id, query, callback) {
+			// "id" contains URL address
+			AJAX('GET ' + this.urlify(QUERIFY(id, query)), callback);
+		};
+
+	</script>
+
+</body>
+</html>

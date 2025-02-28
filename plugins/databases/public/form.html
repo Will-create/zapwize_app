@@ -1,0 +1,145 @@
+<style>
+	.CLASS .controls { float: right; }
+	.CLASS .controls button { border: 0; width: 24px; outline: 0; background-color: transparent; border-radius: var(--radius); text-align: center; }
+	.CLASS .controls button:hover { background-color: #F5F5F5; }
+	.CLASS .ui-listform-selected { background-color: #FDF8E2; font-weight: normal; }
+	.CLASS .ui-listform-form-container { background-color: transparent; }
+</style>
+
+<ui-component name="box" path="common.form" config="if:~PATH~;icon:ti ti-database-alt;autofocus:true;reload:?/reload;submit:?/submit;width:800" class="hidden ~PATH~" plugin="~PATH~">
+	<div class="padding">
+
+		<div class="grid-2">
+			<div class="m">
+				<ui-component name="input" path="?.name" config="required:1">@(Name)</ui-component>
+			</div>
+			<div class="m">
+				<ui-component name="input" path="?.category" config="dirsource:?|categories;dircustom:1;dirplaceholder:@(Search or create new)">@(Category)</ui-component>
+			</div>
+		</div>
+		<div class="grid-2">
+			<div class="grid-2">
+				<div class="m">
+					<ui-component name="input" path="?.icon" config="type:icon" default="'ti ti-microchip-alt'">@(Icon)</ui-component>
+				</div>
+				<div class="m">
+					<ui-component name="input" path="?.color" config="type:color">@(Color)</ui-component>
+				</div>
+			</div>
+		</div>
+
+		<div class="caption m">
+			<label><i class="ti ti-columns"></i>@(Primary columns)</label>
+		</div>
+
+		<div class="ui-listform-container bg-smoke m">
+			<div class="ui-listform-items">
+				<div class="ui-listform-item" style="cursor:not-allowed">
+					<div style="padding:8px 10px 8px 15px">
+						<div class="pull-right mr10"><i class="ti ti-font mr5"></i><span class="badge badge-green badge-medium">@(String)</span></div>
+						<span class="red mr5">***</span>@(Identifier) <span class="badge badge-silver badge-medium">id</span>
+					</div>
+				</div>
+				<div class="ui-listform-item" style="cursor:not-allowed">
+					<div style="padding:8px 10px 8px 15px">
+						<div class="pull-right mr10"><i class="ti ti-font mr5"></i><span class="badge badge-green badge-medium">@(String)</span></div>
+						<span class="red mr5">***</span>@(Name) <span class="badge badge-silver badge-medium">name</span>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<ui-component name="listform" path="?.columns" config="autofocus:1;footertop:1;empty:@(Database doesn't have defined any columns)">
+
+			<script type="text/html">
+				<div style="padding:8px 10px 8px 15px">
+					<div class="controls">
+						<button name="up"><i class="ti ti-arrow-up"></i></button>
+						<button name="down"><i class="ti ti-arrow-down"></i></button>
+					</div>
+					<div class="pull-right mr10">{{ type | databasetype }}</div>
+					{{ if required }}<span class="red mr5">***</span>{{ fi }}{{ name }} <span class="badge badge-silver badge-medium">{{ id }}</span>
+				</div>
+			</script>
+
+			<script type="text/html">
+				<div class="padding">
+					<div class="grid-3">
+						<div class="m">
+							<ui-component name="input" path="?.id" config="required:1;type:id;maxlength:30">@(Path)</ui-component>
+						</div>
+						<ui-bind path="?.used" config="disabled" class="m block">
+							<ui-component name="input" path="?.type" config="required:1;dirsource:DatabaseTypes;dirraw:1">@(Type)</ui-component>
+						</ui-bind>
+						<div class="m">
+							<ui-component name="input" path="?.name" config="required:1">@(Label)</ui-component>
+						</div>
+					</div>
+					<div class="m">
+						<ui-component name="input" path="?.required" config="type:checkbox">@(Required)</ui-component>
+					</div>
+					<ui-component name="validate" path="?" class="toolbar">
+						<button name="submit" class="b"><i class="ti ti-save green"></i>@(Save)</button>
+						<button name="remove"><i class="ti ti-remove red"></i>@(Remove)</button>
+						<button name="cancel">@(Cancel)</button>
+					</ui-component>
+				</div>
+			</script>
+
+			<script type="text/html">
+
+				<div class="caption m" style="margin-top:30px">
+					<div class="toolbar m">
+						<button name="create" class="b"><i class="ti ti-plus-circle green"></i>@(Add)</button>
+					</div>
+					<label><i class="ti ti-cog"></i>@(Custom columns)</label>
+				</div>
+
+			</script>
+
+		</ui-component>
+	</div>
+	<nav>
+		<ui-component name="validate" path="?">
+			<button name="submit" disabled><i class="ti ti-check-circle"></i>@(SUBMIT)</button>
+			<button name="cancel">@(Cancel)</button>
+		</ui-component>
+	</nav>
+</ui-component>
+
+<script>
+
+	PLUGIN(function(exports) {
+
+		var caller;
+
+		exports.reload = function(com) {
+
+			caller = exports.caller;
+
+			var model = exports.model;
+			var id = model ? model.id : null;
+
+			com.reconfigure({ title: id ? '@(Update database)' : '@(Create database)' });
+
+			var parent = caller.model;
+			var items = parent.items;
+			exports.set('|categories', parent.categories);
+		};
+
+		exports.submit = function(hide) {
+			var model = CLONE(exports.form);
+
+			for (var m of model.columns)
+				m.used = true;
+
+			exports.tapi('db_{0} @showloading ERROR'.format(model.id ? 'update' : 'create'), model, function() {
+				EXEC('pluginui/refresh_db');
+				caller.exec('refresh @hideloading');
+				hide();
+			});
+		};
+
+	});
+
+</script>

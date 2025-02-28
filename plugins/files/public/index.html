@@ -1,0 +1,86 @@
+<ui-plugin config="aclass:1">
+
+	<div class="toolbar toolbar-bg">
+		<label><i class="ti ti-folder"></i>@(File browser)</label>
+		<ui-bind path="?.checked" config="enabled .D:value && value.length" class="toolbar pull-right">
+			<button class="exec" data-exec="?/upload"><i class="ti ti-cloud-upload"></i>@(Upload)</button>
+			<button class="exec D" data-exec="?/remove" disabled><i class="ti ti-remove red"></i>@(Remove)</button>
+			<button class="exec" data-exec="?/refresh"><i class="ti ti-refresh"></i>@(Refresh)</button>
+		</ui-bind>
+	</div>
+
+	<ui-component name="datagrid" path="?.grid" config="margin:120;button:?/buttons;height:window;exec:?/filter;noborder:1;checked:?.checked" class="invisible">
+		<script type="text/plain">
+			[
+				{ name: 'id', text: '@(ID)', width: 120, monospace: 1, align: 1, hide: true },
+				{ name: 'preview', text: '@(Preview)', width: 100, align: 1, sort: false, filter: false, template: '<a href="{{ url }}" target="_blank" class="gray"><i class="ti ti-arrow-circle-down mr5"></i>@(Download)</a>' },
+				{ name: 'name', text: '@(Name)', width: 300, template: '<span class="exec mr5 color" data-exec="?/copy" data-url="{{ url }}" title="@(Copy the URL address to the clipboard)"><i class="ti ti-copy"></i></span>{{ name }}' },
+				{ name: 'ext', text: '@(Extension)', width: 100, align: 1, colorize: 1, monospace: 1 },
+				{ name: 'size', text: '@(Size)', width: 100, type: 'number', template: '{{ size | filesize }}' },
+				{ name: 'width', text: '@(Width)', width: 100, type: 'number', template: '{{ if width > 0 }}{{ width }}px{{ fi }}' },
+				{ name: 'height', text: '@(Height)', width: 100, type: 'number', template: '{{ if width > 0 }}{{ height }}px{{ fi }}' },
+				{ name: 'dtcreated', text: '@(Created)', align: 1, format: '[ts]', type: 'date' }
+			]
+		</script>
+	</ui-component>
+
+</ui-plugin>
+
+<script>
+
+	PLUGIN(function(exports) {
+
+		var initialized = false;
+
+		exports.filter = function(type, filter, sort, page) {
+
+			if (!filter)
+				filter = {};
+
+			filter.sort = sort;
+			filter.page = page;
+
+			exports.tapi(QUERIFY('files @showloading', filter), ERROR(function(response) {
+				exports.set('grid @hideloading', response, type === 'refresh' ? 'noscroll' : null);
+			}));
+
+		};
+
+		exports.remove = function() {
+			var model = exports.model;
+			var checked = model.checked;
+			EXEC('-approve/show', '@(Are you sure you want to remove selected files?)', '"ti ti-trash" @(Remove)', function() {
+				SETTER('loading/show');
+				checked.wait(function(item, next) {
+					exports.tapi('files_remove ERROR', { id: item.id }, next);
+				}, () => exports.nul('grid @hideloading'));
+			});
+		};
+
+		exports.copy = function(el) {
+			SETTER('clipboard/copy', el.attrd('url'));
+			SETTER('notify/success', '@(Copied)');
+		};
+
+		exports.upload = function() {
+			var opt = {};
+			opt.multiple = true;
+			opt.callback = exports.refresh;
+			SETTER('fileuploader/upload', opt);
+		};
+
+		exports.refresh = function() {
+			exports.nul('grid');
+		};
+
+		exports.reload = function() {
+			if (initialized)
+				exports.refresh();
+			else
+				initialized = true;
+		};
+
+
+	});
+
+</script>

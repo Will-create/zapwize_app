@@ -1,0 +1,26 @@
+{
+	"paused": false,
+	"id": "ui",
+	"reference": "",
+	"author": "Total.js",
+	"group": "",
+	"icon": "ti ti-pencil-paintbrush",
+	"color": "#4285F4",
+	"version": "1",
+	"readme": "",
+	"url": "https://www.totaljs.com",
+	"name": "UI",
+	"components": {
+		"uiend": "<script total>\n\n\texports.id = 'uiend';\n\texports.name = 'End';\n\texports.icon = 'ti ti-ban';\n\texports.color = '#E73323';\n\texports.author = 'Peter Širka';\n\texports.version = '1';\n\texports.group = 'Navigation';\n\texports.config = {};\n\texports.inputs = [{ id: 'end', name: 'End' }];\n\n\texports.make = function(instance, config) {\n\n\t\tinstance.message = function($) {\n\n\t\t\tif (!$.refs.controller) {\n\t\t\t\t$.destroy();\n\t\t\t\treturn;\n\t\t\t}\n\n\t\t\tvar meta = $.refs.uistudio || {};\n\t\t\tmeta.parent = meta.id;\n\t\t\tmeta.id = instance.id;\n\t\t\tmeta.data = $.data;\n\t\t\tmeta.input = $.input;\n\t\t\tmeta.output = undefined;\n\t\t\t$.refs.controller.json(meta);\n\t\t\t$.refs.controller = null;\n\t\t\t$.destroy();\n\t\t};\n\n\t};\n\n</script>\n\n<readme>\nIn this component, the UI design flow ends without pre-rendering UI content.\n</readme>\n\n<body>\n\t<header>\n\t\t<i class=\"ICON\"></i>Navigation: NAME\n\t</header>\n</body>"
+	},
+	"design": {
+	},
+	"variables": {},
+	"sources": {},
+	"proxypath": "/stream/",
+	"origin": "",
+	"worker": "fork",
+	"dtcreated": null,
+	"import": "/definitions/db.js,flow-ui.js,flow-db.js",
+	"size": -1
+}

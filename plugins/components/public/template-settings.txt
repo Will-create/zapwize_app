@@ -1,0 +1,15 @@
+<div class="padding">
+	<ui-component name="input" path="?.bold" config="type:checkbox">Apply bold font</ui-component>
+	<ui-component name="input" path="?.flash" config="type:checkbox">Flash the time separators</ui-component>
+	<ui-component name="input" path="?.seconds" config="type:checkbox">Display the time with seconds</ui-component>
+</div>
+
+<!--
+<script>
+	PLUGIN(function(exports) {
+		exports.clear = function() {
+			exports.nul('datasource');
+		};
+	});
+</script>
+-->

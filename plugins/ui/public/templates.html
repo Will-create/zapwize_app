@@ -1,0 +1,120 @@
+<style>
+	.CLASS figure { font-size: 12px; }
+	.CLASS .buttons { float: right; padding-left: 10px; }
+	.CLASS .currency { float: right; width: 40px; color: #777; border-right: 1px solid #D0D0D0; margin-right: 5px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; text-align: left; }
+	.CLASS .rate { float: right; width: 170px; color: #777; text-align: right; padding: 0 10px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+	.CLASS .name { margin-right: 300px; }
+	.CLASS .name > i { width: 12px; margin-right: 5px; text-align: center; }
+	.CLASS .buttons span { line-height: 21px; margin:0px 2px 2px 2px ; border-radius: var(--radius); border: 0; margin: 0 5px; }
+	.CLASS figure .name .customer { margin-right: 15px; }
+	.CLASS figure .name .badges { display: inline-block; border-left: 1px solid #e0e0e0; padding-left: 15px; }
+
+	@media(max-width:768px) {
+		.CLASS .name { margin-right: 46px; }
+	}
+</style>
+
+<ui-component name="box" path="common.form" config="if:~PATH~;width:900;icon:ti ti-magic-alt;title:@(Templates);reload:?/reload;" class="hidden ~PATH~" plugin="~PATH~">
+	<nav>
+		<button class="exec" data-exec="?/add"><i class="ti ti-plus-circle green"></i>@(Create)</button>
+	</nav>
+	<ui-component name="empty" path="?.items" config="parent:auto;icon:ti ti-frown red;margin:50">
+		<script type="text/html">
+			@(You don't have any templates here)
+		</script>
+		<div class="padding">
+			<ui-bind path="?.items" config="track:id;template" class="meta listing">
+				<script type="text/html">
+				{{ foreach m in value }}
+					<figure data-id="{{ m.id }}" class="exec items" data-exec="?/update">
+						<section>
+							<div class="buttons">
+								<span class="exec" data-exec="?/update" data-prevent="true"><i class="ti ti-pencil-alt"></i></span>
+								<span class="exec" data-exec="?/remove" data-prevent="true"><i class="ti ti-trash red"></i></span>
+							</div>
+							<div class="name">
+								<i class="{{ m.icon }}" style="color:{{ m.color }}"></i>
+								<b>{{ m.name | empty }}</b>
+							</div>
+						</section>
+					</figure>
+				{{ end }}
+				</script>
+			</ui-bind>
+		</div>
+	</ui-component>
+	<nav>
+		<button name="cancel" style="width:100%">@(Close)</button>
+	</nav>
+</ui-component>
+
+<script>
+
+	PLUGIN(function(exports) {
+
+		exports.reload = function() {
+			exports.refresh();
+		};
+
+		exports.refresh = function() {
+			exports.tapi('ui_templates', 'items');
+		};
+
+		exports.add = function() {
+
+			exports.ajax('GET /_ui/ui.json', function(response) {
+				var opt = {};
+				opt.body = JSON.stringify(response, null, '\t');
+				opt.type = 'application/json';
+				opt.callback = function(value, hide) {
+					try {
+						value = JSON.parse(value);
+						value.id = null;
+						exports.tapi('ui_templates_save ERROR', { data: value }, function() {
+							exports.refresh();
+							hide();
+						});
+					} catch (e) {
+						ERROR([{ error: e }]);
+					}
+				};
+
+				FUNC.code(opt);
+			});
+		};
+
+		exports.remove = function(el) {
+			var id = ATTRD(el);
+			SETTER('approve/show', '@(Are you sure you want to remove selected template?)', '"ti ti-trash" @(Remove)', function() {
+				exports.tapi('ui_templates_remove ERROR', { id: id },function() {
+					SETTER('notify/success', '@(Done)');
+					exports.refresh();
+				});
+			});
+		};
+
+		exports.update = function(el) {
+			var id = ATTRD(el);
+			exports.tapi('ui_templates_read ERROR', { id: id }, function(response) {
+				var opt = {};
+				delete response.editor.id;
+				opt.body = JSON.stringify(response.editor, null, '\t');
+				opt.type = 'application/json';
+				opt.callback = function(value, hide) {
+					try {
+						value = JSON.parse(value);
+						value.id = id;
+						exports.tapi('ui_templates_save ERROR', { data: value }, function() {
+							exports.refresh();
+							hide();
+						});
+					} catch (e) {
+						ERROR([{ error: e }]);
+					}
+				};
+
+				FUNC.code(opt);
+			});
+		};
+	});
+</script>

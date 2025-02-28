@@ -1,0 +1,13 @@
+<ui-plugin>
+	<ui-component name="flow" path="?" config="left:201;top:0;close:?/close;margin:60"></ui-component>
+</ui-plugin>
+
+<script>
+	PLUGIN(function(exports) {
+
+		exports.close = function() {
+			SETTER('parts/close', exports.name.substring(5));
+		};
+
+	});
+</script>

@@ -1,0 +1,8 @@
+<div class="CLASS"></div>
+
+<script>
+	PLUGIN(function(exports) {
+		exports.init = () => UIBuilder.build($('.CLASS'), exports.model, NOOP);
+		exports.destroy = () => delete W[exports.name];
+	});
+</script>

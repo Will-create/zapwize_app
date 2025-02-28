@@ -1,0 +1,225 @@
+<style>
+	.CLASS .type-part { background-color: #E7CAF94F !important; }
+	.CLASS .type-dashboard { background-color: #FFC16E2E !important; }
+	.CLASS .type-flowboard { background-color: #B7E0A93B !important; }
+	.CLASS .listing2 { column-gap: 15px; }
+	.CLASS .listing2 figure { margin-bottom: 15px; }
+	.CLASS .listing2 figure:hover { filter:brightness(0.95); }
+	.CLASS .controls { border-left: 1px solid rgba(0,0,0,0.1); border-right: 1px solid rgba(0,0,0,0.1); padding: 0 10px; }
+	.CLASS .icon { border-right: 1px solid rgba(0,0,0,0.1); margin-right: 8px; padding-right: 8px; }
+</style>
+
+<ui-plugin config="aclass:1">
+
+	<div class="toolbar toolbar-bg">
+		<ui-bind path="user" config="exec:?/permissions" class="toolbar pull-right">
+			<button class="exec D" data-exec="?/create"><i class="ti ti-plus-circle"></i>@(Create)</button>
+			<button class="exec" data-exec="?/refresh"><i class="ti ti-refresh"></i>@(Refresh)</button>
+		</ui-bind>
+		<div class="search">
+			<ui-component name="searchinput" path="?.search" config="autofocus:1;placeholder:@(Search)"></ui-component>
+		</div>
+	</div>
+
+	<ui-component name="viewbox" config="parent:window;margin:120" class="invisible">
+		<ui-component name="empty" path="?.list" config="parent:auto">
+
+			<script type="text/html">
+				<div>@(The database doesn't contain any items)</div>
+				<div class="mt5">
+					<span class="link exec" data-exec="?/create"><i class="ti ti-plus-circle green mr5"></i>@(Create first)</span>
+				</div>
+			</script>
+
+			<div class="padding hidden">
+				<ui-component name="search" path="?.search" config="selector:figure;datasource:?.list">
+					<ui-bind path="?.list" config="template" class="block">
+						<script type="text/html">
+							{{ foreach g in value }}
+								{{ if g.name }}
+								<div class="caption m">
+									<label>{{ g.name }}</label>
+								</div>
+								{{ else }}
+								<div style="height:5px"></div>
+								{{ fi }}
+								<div class="listing2 m grid-4 grid-md-2 grid-sm-2 grid-xs-1">
+								{{ foreach m in g.items }}
+									<figure class="exec" data-exec="?/browse" data-id="{{ m.id }}" data-search="{{ m.name }}">
+										<section>
+											<div class="pull-right ml10">
+												<span class="exec" data-exec="?/options" data-prevent="true"><i class="ti ti-cog"></i></span>
+											</div>
+											<div>
+												<div class="pull-left icon" style="{{ if m.color }}color:{{ m.color }}{{ fi }}"><i class="{{ m.icon }}"></i></div>
+												<div class="name">
+													<div><span class="badge badge-color mr5">db{{ m.id }}</span>{{ m.name }}</div>
+												</div>
+											</div>
+										</section>
+									</figure>
+								{{ end }}
+								</div>
+							{{ end }}
+						</script>
+					</ui-bind>
+				</ui-component>
+			</div>
+
+		</ui-component>
+	</ui-component>
+
+</ui-plugin>
+
+<ui-component name="importer" path="common.form" config="if:form~PATH~;url:/~ID~/form.html"></ui-component>
+
+<script>
+
+	var DatabaseTypes = [];
+
+	Thelpers.databasetype = function(val) {
+		return DatabaseTypes.findValue('id', val, 'name');
+	};
+
+	PLUGIN(function(exports) {
+
+		var url = null;
+		var types = [{ id: 'string', name: '@(String)', template: '<i class="ti ti-font mr5"></i><span class="badge badge-green badge-medium">@(String)</span>' }, { id: 'number', name: '@(Number)', template: '<i class="ti ti-calculator mr5"></i><span class="badge badge-color badge-medium">@(Number)</span>' }, { id: 'boolean', name: '@(Boolean)', template: '<i class="ti ti-check-square mr5"></i><span class="badge badge-purple badge-medium">@(Boolean)</span>' }, { id: 'date', name: '@(Date)', template: '<i class="ti ti-calendar mr5"></i><span class="badge badge-yellow badge-medium">@(Date)</span>' }];
+
+		exports.permissions = function(value, path, el) {
+			el.find('.D').prop('disabled', UNAUTHORIZED('flows_create'));
+		};
+
+		exports.create = function() {
+			var model = exports.model;
+			model.flow && exports.nul('flow');
+			var p  = exports.format('form{0}');
+			SET(p + ' @default', {});
+			SET('*form', p);
+		};
+
+		exports.reload = function() {
+			exports.refresh();
+		};
+
+		exports.refresh = function() {
+			var model = exports.model;
+			exports.tapi('db ERROR', function(response) {
+
+				var category = {};
+
+				for (var item of response) {
+
+					if (!item.category)
+						item.category = '$';
+
+					if (category[item.category])
+						category[item.category].push(item);
+					else
+						category[item.category] = [item];
+				}
+
+				var items = [];
+				var def = { name: '', items: category.$ || [] };
+
+				delete category.$;
+
+				for (var key in category)
+					items.push({ name: key, items: category[key] });
+
+				items.quicksort('name');
+
+				if (def.items.length)
+					items.unshift(def);
+
+				DatabaseTypes = CLONE(types);
+
+				// for (var m of response)
+				// 	DatabaseTypes.push({ id: '@' + m.id, name: m.name, template: '<i class="ti ti-code-branch mr5"></i>' + m.name });
+
+				for (var m of DatabaseTypes)
+					m.name = m.template;
+
+				response.reverse();
+				exports.set('categories', Object.keys(category));
+				exports.set('list', items);
+				exports.set('items @hideloading', response);
+			});
+		};
+
+		exports.options = function(el) {
+
+			var id = ATTRD(el);
+			var model = exports.model;
+			var item = model.items.findItem('id', id);
+			var opt = {};
+			opt.align = 'right';
+			opt.element = el;
+			opt.items = [];
+
+			opt.items.push({ id: 'browse', name: '@(Browse data)', classname: 'b', icon: 'ti ti-database' });
+			opt.items.push({ id: 'edit', name: '@(Edit)', icon: 'ti ti-pencil' });
+			opt.items.push({ id: 'clone', name: '@(Clone)', icon: 'ti ti-clone' });
+			opt.items.push('-');
+			opt.items.push({ id: 'remove', name: '@(Remove)', icon: 'ti ti-remove red' });
+			opt.callback = function(selected) {
+				exports[selected.id](id);
+			};
+
+			SETTER('menu/show', opt);
+		};
+
+		exports.edit = function(el) {
+			var id = ATTRD(el);
+			var model = exports.model;
+			model.flow && exports.nul('flow');
+			exports.tapi('db_read ERROR', { id: id }, function(response) {
+				var p = exports.format('form{0}');
+				SET(p + ' @reset', response);
+				SET('*form', p);
+			});
+		};
+
+		exports.clone = function(el) {
+			var id = ATTRD(el);
+			SETTER('approve/show', '@(Are you sure you want to clone selected database?)', '"ti ti-clone" @(Clone)', function() {
+				exports.tapi('db_clone @showloading ERROR', { id: id }, exports.refresh);
+			});
+		};
+
+		exports.remove = function(el) {
+			var id = ATTRD(el);
+			SETTER('approve/show', '@(Are you sure you want to remove selected database?)', '"ti ti-trash" @(Remove)', function() {
+				SETTER('sounds/play', 'badge');
+				SETTER('parts/close', id);
+				exports.tapi('db_remove @showloading ERROR', { id: id }, exports.refresh);
+			});
+		};
+
+		exports.hide = function() {
+			var model = exports.model;
+			model.flow && exports.nul('flow');
+		};
+
+		exports.browse = function(el) {
+
+			var id = ATTRD(el);
+			var win = {};
+
+			win.id = id;
+
+			if (common.windows.findItem('id', win.id)) {
+				SETTER('windows/focus', win.id);
+				return;
+			}
+
+			var model = exports.model;
+			var item = model.items.findItem('id', id);
+
+			PUSH('*tabs', { id: win.id, name: '@(DB): ' + item.name, remove: function() {
+				delete W['database_' + win.id];
+			}, html: '<ui-import config="url:/~ID~/data-browse.html;reevaluate:1;path:database_{0}" data-id="{0}"></ui-import>'.format(id) });
+		};
+
+	});
+</script>

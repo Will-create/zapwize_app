@@ -1,0 +1,7 @@
+name           : TAS
+$api           : /admin/
+$customtitles  : true
+
+// Main settings
+// database       : https://yourendpoint.com/db/?token=0ee9cfb3-dc62-18df-b9f3-ffa82e521e76
+database       : postgres://muald:123456789@Muald@987654321@192.162.70.80:5432/zapwize_app

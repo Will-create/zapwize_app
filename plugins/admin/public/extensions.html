@@ -1,0 +1,23 @@
+<ui-component name="importer" path="common.form" config="if:formcredentials;url:/~ID~/form.html"></ui-component>
+
+<script>
+
+	ON('ready', function() {
+		var builder = [];
+		builder.push('<div class="exec" data-exec="*/credentials"><i class="ti ti-key"></i>@(Change credentials)</div>');
+		builder.push('<div class="exec" data-exec="*/logout"><i class="ti ti-power-off red"></i>@(Logout)</div>');
+		$('.customnav').append(builder.join('\n'));
+		EXTENSION('*', function(exports) {
+			exports.credentials = function() {
+				TAPI('admin_read ERROR', function(response) {
+					SET('formcredentials @reset', response);
+					SET('*form', 'formcredentials');
+				});
+			};
+			exports.logout = function() {
+				TAPI('logout @showloading', () => location.href = '/');
+			};
+		});
+	});
+
+</script>

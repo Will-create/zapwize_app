@@ -1,0 +1,10 @@
+<ui-component name="viewbox" path="*page" config="parent:window;margin:63">
+	<div class="CLASS"></div>
+</ui-component>
+
+<script>
+	PLUGIN(function(exports) {
+		exports.init = () => ADD({ name: 'uistudio', path: exports.path, config: { url: QUERIFY('/stream/?id={0}'.format(NAV.params[0]), { openplatform: NAV.query.openplatform }) }, element: $('.CLASS') });
+		exports.destroy = () => delete W[exports.name];
+	});
+</script>

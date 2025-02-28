@@ -1,0 +1,331 @@
+<style>
+	.CLASS .ui-folder { background-color: #FFF; border: 0; }
+	.CLASS .ui-folder-path { border-radius: 0; padding-left: 12px; }
+	.CLASS .ui-folder-item { padding-left: 12px; padding-right: 12px; height: 36px; }
+	.CLASS .ui-folder-item:hover { background-color: rgba(0,0,0,0.02); }
+	.CLASS .ui-folder-item-name { line-height: 36px; }
+	.CLASS .ui-folder-item-icon { line-height: 36px; }
+	.CLASS .ui-folder-checkbox { margin-top: 10px; }
+	.CLASS .ui-folder-up { padding-left: 20px; }
+</style>
+
+<ui-plugin config="aclass:1">
+	<div class="toolbar" style="position:absolute;right:10px;top:7px">
+		<button class="exec b" data-exec="?/create"><i class="ti ti-plus-circle"></i>@(Create)</button>
+		<button class="exec" data-exec="?/options"><i class="ti ti-cog"></i>@(Options)</button>
+		<button class="exec" data-exec="?/refresh"><i class="ti ti-sync"></i>@(Refresh)</button>
+	</div>
+	<ui-component name="folder" path="?.path" config="root:@(Databases);browse:?/browse;click:?/click;options:?/contextmenu;contextmenu:?/contextmenu;parent:window;margin:60"></ui-component>
+</ui-plugin>
+
+<ui-component name="importer" path="*form" config="if:formCLASS;url:/~ID~/forms/form.html"></ui-component>
+<ui-component name="importer" path="*form" config="if:formCLASSwidget;url:/~ID~/forms/widget.html"></ui-component>
+
+<script>
+	PLUGIN(function(exports) {
+
+		var noscroll = false;
+
+		function wrap(path) {
+			if (path.charAt(0) !== '/')
+				path = '/' + path;
+			if (path.charAt(path.length - 1) !== '/')
+				path += '/';
+			return path;
+		}
+
+		exports.reload = function() {
+			exports.refresh();
+		};
+
+		exports.refresh = function() {
+			exports.upd('path');
+		};
+
+		exports.browse = function(path, next, item) {
+			var payload = {};
+
+			payload.path = wrap(path);
+
+			exports.tapi('components ERROR @showloading', payload, function(response) {
+				SETTER('loading/hide', 500);
+
+				var length = payload.path.split('/').length;
+
+				for (let item of response) {
+					if (item.type === 1)
+						item.icon = length === 3 ? 'ti ti-layer-plus' : 'ti ti-database-alt';
+					item.checkbox = false;
+				}
+
+				next(response, noscroll);
+
+				if (noscroll)
+					noscroll = false;
+
+			});
+		};
+
+		exports.click = function(item) {
+			var model = CLONE(exports.model);
+			var p = wrap(model.path) + item.name;
+			exports.tapi('components_read @showloading ERROR', { path: p }, function(response) {
+				var path = 'form' + exports.name;
+				SET(path + ' @reset @hideloading', { path: p, body: response });
+				SET('*form', path);
+			});
+		};
+
+		exports.contextmenu = function(item, el, e) {
+
+			var model = CLONE(exports.model);
+
+			if (!model.path)
+				model.path = '/';
+
+			var path = wrap(model.path);
+			var opt = {};
+
+			if (e) {
+				opt.x = e.pageX;
+				opt.y = e.pageY;
+			} else
+				opt.element = el;
+
+			opt.items = [];
+
+			if (item.type === 2)
+				opt.items.push({ id: 'copy', name: '@(Copy link)', icon: 'ti ti-copy' });
+
+			if (path === '/') {
+				opt.items.push({ id: 'copy1', name: '@(Copy link for editor)', icon: 'ti ti-copy' });
+				opt.items.push({ id: 'copy2', name: '@(Copy link for render)', icon: 'ti ti-copy' });
+				opt.items.push({ id: 'download', name: '@(Download database)', icon: 'ti ti-download' });
+				opt.items.push('-');
+			}
+
+			if (item.type === 1)
+				opt.items.push({ id: 'clone', name: '@(Clone)', icon: 'ti ti-clone' });
+
+			opt.items.push({ id: 'rename', name: '@(Rename)', icon: 'ti ti-pencil' });
+			opt.items.push({ id: 'remove', name: '@(Remove)', icon: 'ti ti-remove red' });
+
+			opt.align = 'right';
+
+			opt.callback = function(selected) {
+
+				var tmp;
+
+				switch(selected.id) {
+					case 'download':
+						location.href = QUERIFY('{0}components/download/'.format(location.pathname), { db: item.name, token: NAV.query.token, openplatform: NAV.query.openplatform });
+						break;
+
+					case 'copy':
+						SETTER('clipboard/copy', location.origin + '/ui' + path + item.name);
+						break;
+
+					case 'copy1':
+						SETTER('clipboard/copy', location.origin + '/ui/' + item.name + '.json');
+						break;
+
+					case 'copy2':
+						SETTER('clipboard/copy', location.origin + '/ui/' + item.name + '.js');
+						break;
+
+					case 'clone':
+						exports.tapi('components_clone ERROR', { path: path + item.name + '/', newpath: path + item.name + '-cloned/' }, function() {
+							exports.refresh();
+							SETTER('notify/success', '@(Done)');
+						});
+						break;
+
+					case 'rename':
+						var payload = {};
+						payload.name = '@(Rename)';
+						payload.value = item.name;
+						payload.callback = function(val) {
+							val = val.slug().toLowerCase();
+							if (val) {
+								exports.tapi('components_rename ERROR', { path: path + item.name + '/', newpath: path + val + '/' }, function() {
+									exports.refresh();
+									SETTER('notify/success', '@(Done)');
+								});
+							}
+						};
+						SETTER('prompt/show', payload);
+						break;
+
+					case 'remove':
+						tmp = path + item.name + (item.type === 1 ? '/' : '');
+						SETTER('approve/show', '@(Are you sure you want to remove <b>"{0}"</b>?)'.format(tmp.encode()), '"ti ti-trash" @(Remove)', function() {
+							exports.tapi('components_remove @showloading ERROR', { path: tmp }, function(response) {
+								SETTER('loading/hide', 500);
+								noscroll = true;
+								exports.upd('path');
+								SETTER('notify/success', '@(Done)');
+							});
+						});
+						break;
+				}
+			};
+
+			SETTER('menu/show', opt);
+		};
+
+		exports.create = function(el) {
+			var model = CLONE(exports.model);
+
+			if (!model.path)
+				model.path = '/';
+
+			var path = wrap(model.path);
+			var length = path.split('/').length;
+
+			var opt = {};
+			opt.element = el;
+			opt.items = [];
+
+			if (length === 4) {
+				opt.items.push({ id: 'editor', name: '@(Create) <strong>editor.html</strong>', icon: 'ti ti-layout' });
+				opt.items.push({ id: 'render', name: '@(Create) <strong>render.html</strong>', icon: 'ti ti-print' });
+				opt.items.push({ id: 'settings', name: '@(Create) <strong>settings.html</strong>', icon: 'ti ti-cog' });
+				opt.items.push('-');
+				opt.items.push({ id: 'upload', name: '@(Upload file)', icon: 'ti ti-upload' });
+			} else if (length === 2)
+				opt.items.push({ id: 'database', name: '@(Create database)', icon: 'ti ti-database-alt' });
+			else {
+				opt.items.push({ id: 'component', name: '@(Create component)', icon: 'ti ti-layer-plus' });
+				opt.items.push({ id: 'widget', name: '@(Transform CMS widget)', icon: 'ti ti-layout' });
+				opt.items.push('-');
+				opt.items.push({ id: 'upload', name: '@(Upload file)', icon: 'ti ti-upload' });
+			}
+
+			opt.align = 'right';
+			opt.callback = function(selected) {
+
+				var payload;
+
+				switch(selected.id) {
+					case 'editor':
+					case 'render':
+					case 'settings':
+						AJAX('GET /~ID~/template-{0}.txt'.format(selected.id), response => exports.tapi('components_update ERROR', { path: path + selected.id + '.html', body: response.replace(/ID/g, path.split('/')[2]) }, exports.refresh));
+						break;
+					case 'widget':
+						var p = 'form{name}widget'.args(exports);
+						SET(p + ' @reset', { path: path, body: '<!' + '-' + '- PUT CMS WIDGET CODE HERE -' + '->' });
+						SET('*form', p);
+						break;
+					case 'upload':
+						var payload = {};
+						payload.multiple = false;
+						payload.data = { path: path };
+						payload.url = QUERIFY('{0}components/upload/'.format(DEF.api), { token: NAV.query.token, openplatform: NAV.query.openplatform });
+						payload.callback = function(response) {
+							if (!ERROR(response))
+								exports.refresh();
+						};
+						SETTER('fileuploader/upload', payload);
+						break;
+					case 'database':
+						payload = {};
+						payload.name = '@(Create a new database)';
+						payload.summary = '@(Enter a database name in lower-case and use only a-z characters:)';
+						payload.callback = function(val) {
+							val = val.trim().slug();
+							val && exports.tapi('components_mkdir ERROR', { path: '/' + val + '/' }, function() {
+								exports.refresh();
+								SETTER('notify/success', '@(Done)');
+							});
+						};
+						SETTER('prompt/show', payload);
+						break;
+					case 'component':
+						payload = {};
+						payload.name = '@(Create a new component)';
+						payload.summary = '@(Enter a component name in lower-case and use only a-z characters:)';
+						payload.callback = function(val) {
+							val = val.trim().slug();
+							val && exports.tapi('components_mkdir ERROR', { path: path + val + '/' }, function() {
+								exports.refresh();
+								SETTER('notify/success', '@(Done)');
+							});
+						};
+						SETTER('prompt/show', payload);
+						break;
+				}
+			};
+			SETTER('menu/show', opt);
+		};
+
+		exports.options = function(el) {
+			var model = CLONE(exports.model);
+
+			if (!model.path)
+				model.path = '/';
+
+			var path = wrap(model.path);
+			var arr = path.split('/');
+
+			var opt = {};
+			opt.element = el;
+			opt.items = [];
+
+			if (arr.length === 3 || arr.length === 4) {
+				opt.items.push({ id: 'copy1', name: '@(Copy link for editor)', icon: 'ti ti-copy' });
+				opt.items.push({ id: 'copy2', name: '@(Copy link for render)', icon: 'ti ti-copy' });
+
+				if (arr.length === 3)
+					opt.items.push({ id: 'download', name: '@(Download database)', icon: 'ti ti-download' });
+
+				opt.items.push('-');
+				opt.items.push({ id: 'remove', name: '@(Remove)', icon: 'ti ti-remove red' });
+			}
+
+			if (arr.length === 2)
+				opt.items.push({ id: 'upload', name: '@(Upload .zip database)', icon: 'ti ti-upload' });
+
+			opt.align = 'right';
+			opt.callback = function(selected) {
+				switch(selected.id) {
+					case 'upload':
+						var payload = {};
+						payload.accept = 'application/zip';
+						payload.multiple = false;
+						payload.url = QUERIFY('{0}components/restore/'.format(DEF.api), { token: NAV.query.token, openplatform: NAV.query.openplatform });
+						payload.callback = function(response) {
+							if (!ERROR(response))
+								exports.refresh();
+						};
+						SETTER('fileuploader/upload', payload);
+						break;
+					case 'download':
+						location.href = QUERIFY('{0}components/download/'.format(DEF.api), { db: path.split('/')[1], token: NAV.query.token, openplatform: NAV.query.openplatform });
+						break;
+					case 'copy1':
+						SETTER('clipboard/copy', location.origin + '/ui/' + arr[1] + '.json');
+						break;
+					case 'copy2':
+						SETTER('clipboard/copy', location.origin + '/ui/' + arr[1] + '.js');
+						break;
+					case 'remove':
+						SETTER('approve/show', '@(Are you sure you want to remove <b>"{0}"</b>?)'.format(path), '"ti ti-trash" @(Remove)', function() {
+							exports.tapi('components_remove @showloading ERROR', { path: path }, function(response) {
+								SETTER('loading/hide', 500);
+								var tmp = model.path.split('/');
+								tmp.pop();
+								exports.set('path', tmp.join('/'));
+								SETTER('notify/success', '@(Done)');
+							});
+						});
+						break;
+				}
+			};
+
+			if (opt.items.length)
+				SETTER('menu/show', opt);
+		};
+
+	});
+</script>

@@ -1,0 +1,345 @@
+<style>
+	.CLASS .type-part { background-color: #E7CAF94F !important; }
+	.CLASS .type-dashboard { background-color: #FFC16E2E !important; }
+	.CLASS .type-flowboard { background-color: #B7E0A93B !important; }
+	.CLASS .listing2 { column-gap: 15px; }
+	.CLASS .listing2 figure { margin-bottom: 15px; }
+	.CLASS .listing2 figure:hover { filter:brightness(0.9); }
+	.CLASS .controls { border-left: 1px solid rgba(0,0,0,0.1); border-right: 1px solid rgba(0,0,0,0.1); padding: 0 10px; }
+	.CLASS .icon { border-right: 1px solid rgba(0,0,0,0.1); margin-right: 8px; padding-right: 8px; }
+</style>
+
+<ui-plugin config="aclass:1">
+
+	<div class="toolbar toolbar-bg">
+		<ui-bind path="user" config="exec:?/permissions" class="toolbar pull-right">
+			<button class="exec" data-exec="?/importer"><i class="ti ti-cloud-upload"></i>@(Import)</button>
+			<button class="exec D" data-exec="?/create"><i class="ti ti-plus-circle"></i>@(Create)</button>
+			<button class="exec" data-exec="?/templates"><i class="ti ti-magic-alt"></i>@(Templates)</button>
+			<button class="exec" data-exec="?/refresh"><i class="ti ti-refresh"></i>@(Refresh)</button>
+		</ui-bind>
+		<div class="search">
+			<ui-component name="searchinput" path="?.search" config="autofocus:1;placeholder:@(Search)"></ui-component>
+		</div>
+	</div>
+
+	<ui-component name="viewbox" config="parent:window;margin:120" class="invisible">
+		<ui-component name="empty" path="?.list" config="parent:auto">
+
+			<script type="text/html">
+				<div>@(The UI doesn't contain any items)</div>
+				<div class="mt5">
+					<span class="link exec" data-exec="?/create"><i class="ti ti-plus-circle green mr5"></i>@(Create first)</span>
+				</div>
+			</script>
+
+			<div class="padding hidden">
+				<ui-component name="search" path="?.search" config="selector:figure;datasource:?.list">
+					<ui-bind path="?.list" config="template" class="block">
+						<script type="text/html">
+							{{ foreach g in value }}
+								{{ if g.name }}
+								<div class="caption m">
+									<label>{{ g.name }}</label>
+								</div>
+								{{ else }}
+								<div style="height:5px"></div>
+								{{ fi }}
+								<div class="listing2 m grid-4 grid-md-2 grid-sm-2 grid-xs-1">
+								{{ foreach m in g.items }}
+									<figure class="exec type-{{ m.type }}" data-exec="?/open" data-id="{{ m.id }}" data-search="{{ m.name }}">
+										<section>
+											<div class="pull-right ml10">
+												<span class="exec" data-exec="?/options" data-prevent="true"><i class="ti ti-cog"></i></span>
+											</div>
+											<div>
+												<div class="pull-left icon" style="{{ if m.color }}color:{{ m.color }}{{ fi }}"><i class="{{ m.icon }}"></i></div>
+												<div class="name">{{ m.name }}</div>
+											</div>
+										</section>
+									</figure>
+								{{ end }}
+								</div>
+							{{ end }}
+						</script>
+					</ui-bind>
+				</ui-component>
+			</div>
+		</ui-component>
+	</ui-component>
+
+</ui-plugin>
+
+<ui-component name="importer" path="*form" config="if:form~PATH~;url:/~ID~/form.html"></ui-component>
+<ui-component name="importer" path="*form" config="if:formuitemplates;url:/~ID~/templates.html"></ui-component>
+
+<script>
+
+	PLUGIN(function(exports) {
+
+		var flowurl;
+		var url;
+
+		exports.tapi('ui_editor', function(response) {
+			url = response.value;
+			CONFIG('designer', 'url:' + url);
+		});
+
+		exports.tapi('flows_editor', function(response) {
+			flowurl = response.value;
+		});
+
+		exports.focus = function() {
+			exports.refresh();
+		};
+
+		exports.reload = function() {
+			exports.refresh();
+			exports.tapi('ui_views', 'views');
+			exports.refresh_db();
+		};
+
+		exports.refresh = function(noclose, callback) {
+
+			var model = exports.model;
+
+			if (noclose != true)
+				model.data && exports.nul('data');
+
+			exports.tapi('ui ERROR', function(response) {
+
+				var groups = {};
+				var apps = [];
+
+				for (var item of response) {
+
+					if (!item.group)
+						item.group = '$';
+
+					if (groups[item.group])
+						groups[item.group].push(item);
+					else
+						groups[item.group] = [item];
+
+					apps.push({ id: item.id, name: '<i class="{0} mr5"></i>{1}'.format(item.icon || 'ti ti-rocket', item.name), icon: item.icon, color: item.color, inputs: item.inputs || EMPTYARRAY, outputs: item.outputs || EMPTYARRAY, type: item.type });
+				}
+
+				var items = [];
+				var def = { name: '', items: groups.$ || [] };
+
+				delete groups.$;
+
+				for (var key in groups)
+					items.push({ name: key, items: groups[key] });
+
+				items.quicksort('name');
+				apps.quicksort('name');
+
+				if (def.items.length)
+					items.unshift(def);
+
+				response.reverse();
+				exports.set('groups', Object.keys(groups));
+				exports.set('list', items);
+				exports.set('items @hideloading', response);
+
+				exports.tapi('apps', function(response) {
+
+					response.quicksort('name');
+
+					for (var m of response) {
+						m.id = '@' + m.id;
+						m.type = 'uistudio';
+						m.name = '<i class="{0} mr5"{1}></i><b>{2}</b>'.format(m.icon || 'ti ti-rocket', m.color ? ' style="color:{0}"'.format(m.color) : '', m.name.encode());
+					}
+
+					apps.unshift.apply(apps, response);
+					exports.set('apps', apps);
+
+					if (typeof(callback) === 'function')
+						callback();
+
+				});
+
+			});
+		};
+
+		exports.refresh_db = function() {
+			exports.tapi('cl_list', function(response) {
+
+				for (var m of response) {
+					m.text = m.name;
+					m.name = '<span class="badge badge-small badge-purple mr5">@(codes)</span>' + Thelpers.encode(m.text);
+				}
+
+				var length = response.length;
+				for (var i = 0; i < length; i++) {
+					var item = CLONE(response[i]);
+					item.id = '~' + item.id;
+					item.name = '<span class="badge badge-small badge-blue mr5">@(db)</span>' + Thelpers.encode(item.text);
+					response.push(item);
+				}
+
+				exports.set('codes', response);
+				SETTER('designer/refresh');
+			});
+		};
+
+		exports.create = function() {
+			var model = exports.model;
+			var path = exports.format('form{0}');
+			var data = {};
+			data.groups = model.groups;
+			data.callback = function(response) {
+				SETTER('loading/show');
+				SETTER('loading/hide', 2000);
+				SET('ui_' + response.id, response);
+				PUSH('*tabs', { id: response.id, name: '@(UI): ' + response.name, remove: function() {
+					delete W['ui_' + response.id];
+				}, html: '<ui-import config="url:/~ID~/editor.html;path:ui_{0};reevaluate:1" data-id="{0}"></ui-import>'.format(response.id) });
+			};
+			SET(path + ' @default', data);
+			SET('*form', path);
+		};
+
+		exports.templates = function() {
+			SET('*form', 'formuitemplates');
+		};
+
+		exports.search = function() {
+			SETTER('floatingsearch/show');
+		};
+
+		exports.flowui = function(el) {
+
+			var id = 'ui';
+			var key = 'flow' + id;
+
+			if (common.tabs.findItem('id', key)) {
+				SETTER('parts/focus', key);
+				return;
+			}
+
+			SETTER('loading/show');
+			SET('flow_{0} @hideloading'.format(id), flowurl.format(id));
+			PUSH('*tabs', { id: key, name: '@(Flow: User interface)', remove: function() {
+				delete W['flow_' + id];
+			}, html: '<ui-import config="url:/_flow/editor.html;path:flow_{0};reevaluate:1" data-id="{0}"></ui-import>'.format(id) });
+		};
+
+		exports.open = function(el) {
+			var id = ATTRD(el);
+
+			if (common.tabs.findItem('id', id)) {
+				SETTER('parts/focus', id);
+				return;
+			}
+
+			SETTER('loading/show');
+			exports.ajax('GET /data/{0}_editor.json ERROR'.format(id), function(response) {
+				SET('ui_{0} @hideloading'.format(id), response);
+				response.editor.autopublish = true;
+				response.editor.compile = true;
+				PUSH('*tabs', { id: id, name: '@(UI): ' + response.name, remove: function() {
+					delete W['ui_' + id];
+				}, html: '<ui-import config="url:/~ID~/editor.html;path:ui_{0};reevaluate:1" data-id="{0}"></ui-import>'.format(id) });
+			});
+		};
+
+		exports.output = function(el) {
+			var id = ATTRD(el);
+			REDIRECT('/apps/{0}/'.format(id));
+		};
+
+		exports.clone = function(el) {
+			var id = ATTRD(el);
+			SETTER('approve/show', '@(Are you sure you want to clone selected UI?)', '"ti ti-clone" @(Clone)', function() {
+				exports.tapi('ui_clone @showloading ERROR', { id: id }, exports.refresh);
+			});
+		};
+
+		exports.options = function(el) {
+			var id = ATTRD(el);
+			var model = exports.model;
+			var item = model.items.findItem('id', id);
+			var opt = {};
+			opt.align = 'right';
+			opt.element = el;
+			opt.items = [];
+
+			opt.items.push({ id: 'edit', name: '@(Open designer)', classname: 'b', icon: 'ti ti-paint-brush' });
+			opt.items.push({ id: 'clone', name: '@(Clone)', icon: 'ti ti-clone' });
+			opt.items.push({ id: 'download', name: '@(Export)', icon: 'ti ti-download' });
+
+			opt.items.push('-');
+			opt.items.push({ id: 'remove', name: '@(Remove)', icon: 'ti ti-remove red' });
+			opt.callback = function(selected) {
+
+				switch (selected.id) {
+					case 'clone':
+						exports.clone(id);
+						break;
+					case 'download':
+						location.href = '/data/{0}_editor.json?download=1'.format(id);
+						break;
+					case 'edit':
+						exports.open(id);
+						break;
+					case 'copy':
+					case 'copy2':
+						SETTER('clipboard/copy', location.origin + (selected.id === 'copy' ? '/data/{0}.json' : '/render/{0}/').format(id));
+						SETTER('sounds/play', 'badge');
+						SETTER('notify/success', '@(Copied)');
+						break;
+					case 'remove':
+						exports.remove(el);
+						break;
+				}
+
+			};
+			SETTER('menu/show', opt);
+		};
+
+		exports.remove = function(el) {
+			var id = ATTRD(el);
+			SETTER('approve/show', '@(Are you sure you want to remove selected UI?)', '"ti ti-trash" @(Remove)', function() {
+				SETTER('sounds/play', 'badge');
+				SETTER('parts/close', id);
+				exports.tapi('ui_remove @showloading ERROR', { id: id }, function() {
+					exports.refresh();
+					EXEC('*/refresh_apps');
+				});
+			});
+		};
+
+		exports.permissions = function(value, path, el) {
+			el.find('.D').prop('disabled', UNAUTHORIZED('ui_create'));
+		};
+
+		exports.importer = function() {
+			var opt = {};
+			opt.accept = 'application/json';
+			opt.multiple = true;
+			opt.callback = function(file) {
+				var data = PARSE(file.body);
+				if (data) {
+					SETTER('sounds/play', 'badge');
+					SETTER('notify/success', '@(UI design "{name}" has been imported)'.args(data, 'escape'));
+					exports.tapi('ui_save @showloading ERROR', { data: data }, exports.refresh);
+				}
+			};
+			SETTER('filereader/open', opt);
+		};
+
+		exports.hide = function() {
+			var model = exports.model;
+			model.data && exports.nul('data');
+		};
+
+		exports.export = function() {
+			location.href = '/download/' + common.openplatform;
+		};
+
+	});
+
+</script>

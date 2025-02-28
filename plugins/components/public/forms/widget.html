@@ -1,0 +1,272 @@
+<ui-component name="box" path="*form" config="if:CLASS;title:@(Transform CMS widget);icon:ti ti-layout;autofocus:true;reload:?/reload;scrollbar:0;submit:?/submit;width:1200" class="hidden CLASS" plugin="CLASS">
+	<div>
+		<ui-component name="cloudeditorsimple" path="?.body" config="realtime:1;minheight:300;parent:.ui-box;margin:126;$assign:?|editor" style="border:0"></ui-component>
+	</div>
+	<nav>
+		<button name="submit"><i class="ti ti-check-circle"></i>@(SUBMIT)</button>
+		<button name="cancel">@(Cancel)</button>
+	</nav>
+</ui-component>
+
+<script>
+
+	PLUGIN(function(exports) {
+
+		var caller;
+
+		var parsehtml = function(html, tags) {
+
+			var beg = -1;
+			var end = -1;
+			var output = {};
+
+			for (var key in tags) {
+
+				var tagbeg = tags[key];
+				var tagindex = tagbeg.indexOf(' ');
+
+				if (tagindex === -1)
+					tagindex = tagbeg.length - 1;
+
+				var tagend = '</' + tagbeg.substring(1, tagindex) + '>';
+				var tagbeg2 = '<' + tagend.substring(2);
+
+				beg = html.indexOf(tagbeg);
+
+				if (beg !== -1) {
+
+					var count = 0;
+					end = -1;
+
+					for (var j = (beg + tagbeg.length); j < html.length; j++) {
+						var a = html.substring(j, j + tagbeg2.length);
+						if (a === tagbeg2) {
+							count++;
+						} else {
+							if (html.substring(j, j + tagend.length) === tagend) {
+								if (count) {
+									count--;
+								} else {
+									end = j;
+									break;
+								}
+							}
+						}
+					}
+
+					if (end !== -1) {
+						var tmp = html.substring(html.indexOf('>', beg) + 1, end);
+						html = html.replace(html.substring(beg, end + tagend.length), '').trim();
+						output[key] = tmp.replace(/^\n|\n$/, '');
+					}
+
+				}
+			}
+
+			return output;
+		};
+
+		var template = `
+	exports.id = 'cms{id}';
+	exports.name = '{name}';
+	exports.group = 'CMS';
+	exports.author = '{author}';
+	exports.icon = '{icon}';
+	exports.config = {config};
+	exports.version = '{version}';
+	exports.make = function(instance, config, element, cls, iseditor) {
+
+		var cls2 = '.' + cls;
+		var exports = {};
+
+		{exports}
+
+		if (iseditor) {
+			element.html(config.html || instance.component.html);
+		} else {
+			var template = (config.html || '').indexOf('{{') === -1 ? null : instance.maketemplate(config.html);
+			if (template) {
+				var model = {};
+				model.value = null;
+				element.html(template(model));
+				instance.on('set', function(type, value) {
+					if (type === 'value') {
+						model.value = value;
+						element.html(template(model));
+					}
+				});
+			} else
+				element.html(config.html || instance.component.html);
+		}
+
+		if (!config.html) {
+			var img = element.find('img');
+			for (var t of img) {
+				if (!t.src) {
+					var w = t.getAttribute('data-cms-width');
+					var h = t.getAttribute('data-cms-height');
+					t.src = w && h ? instance.makeimage(+w, +h) : instance.makeimage(200, 200);
+				}
+			}
+		}
+
+		exports.check && exports.check(config, element);
+
+		var skip = false;
+
+		instance.on('configure', function() {
+
+			if (skip) {
+				skip = false;
+				return;
+			}
+
+			if (exports.save) {
+				exports.save(config, element);
+				skip = true;
+				instance.reconfigure({ html: element.html() });
+			}
+		});
+
+		instance.on('cms', function() {
+			instance.reconfigure({ html: element.html() });
+		});
+
+	};`;
+
+		var transform = function(response) {
+			var meta = parsehtml(response, { settings: '<settings>', body: '<body>', scr: '<scr' + 'ipt total>', style: '<style>' });
+			var clean = function(text) {
+
+				if (!text)
+					return text;
+
+				var lines = text.split('\n');
+				var builder = [];
+				var empty = false;
+
+				for (var line of lines) {
+
+					if (!line.trim()) {
+
+						if (empty)
+							continue;
+
+						empty = true;
+						builder.push(line);
+					}
+
+					empty = false;
+					builder.push(line);
+				}
+
+				return builder.join('\n');
+			};
+
+			if (meta.settings) {
+				var index = meta.settings.indexOf('<scr' + 'ipt>');
+				if (index !== -1) {
+					var scr = meta.settings.substring(index, meta.settings.indexOf('</scr' + 'ipt>', index + 8) + 9);
+					meta.settings_scr = clean(scr.replace(new RegExp('<(\/)?scr' + 'ipt>', 'g'), '').replace(new RegExp('(\'|")\\.CLA' + 'SS', 'g'), function(text) {
+						var c = text.charAt(0);
+						return 'cls2 + ' + c;
+					}));
+					meta.settings = meta.settings.replace(scr, '');
+				}
+			}
+
+			var info = {};
+			new Function('exports', meta.scr.replace(/<(\/)?script>/g, ''))(info);
+
+			if (!info.icon)
+				info.icon = 'ti ti-totaljs';
+
+			if (!info.version)
+				info.version = '1';
+
+			if (!info.author)
+				info.author = 'Unknown';
+
+			if (!info.config)
+				info.config = {};
+
+			if (meta.style)
+				info.style = meta.style;
+
+			if (meta.body)
+				info.body = meta.body;
+
+			if (meta.settings)
+				info.settings = meta.settings;
+
+			info.config = JSON.stringify(info.config);
+			info.exports = meta.settings_scr || '';
+
+			delete info.preview;
+
+			var builder = [];
+
+			if (meta.style) {
+				builder.push('<sty' + 'le>');
+				builder.push(clean(info.style));
+				builder.push('</sty' + 'le>');
+				builder.push('');
+			}
+
+			builder.push('<scr' + 'ipt>');
+			builder.push(template.args(info));
+			builder.push('</scr' + 'ipt>');
+			builder.push('');
+
+			if (meta.body) {
+				builder.push('<bo' + 'dy>');
+				builder.push(clean(info.body));
+				builder.push('</bo' + 'dy>');
+				builder.push('');
+			}
+
+			if (meta.settings) {
+				builder.push('<sett' + 'ings>');
+				builder.push(clean(info.settings));
+				builder.push('</sett' + 'ings>');
+				builder.push('');
+			}
+
+			var tmp = builder.join('\n').split('\n');
+			var empty = false;
+			builder = [];
+
+			for (var i = 0; i < tmp.length; i++) {
+				var line = tmp[i];
+				if (!line.trim()) {
+					if (empty)
+						continue;
+					empty = true;
+				} else
+					empty = false;
+				builder.push(line);
+			}
+
+			return { id: info.id, body: builder.join('\n') };
+		};
+
+		exports.reload = function(form) {
+			caller = exports.caller;
+		};
+
+		exports.submit = function(hide) {
+			var model = exports.model;
+			exports.editor.save(function(response) {
+				var meta = transform(response);
+				model.path = model.path + 'cms' + meta.id + '/editor.html';
+				model.body = meta.body;
+				exports.tapi('components_update ERROR', model, function() {
+					hide();
+					caller.exec('refresh');
+				});
+			});
+		};
+
+	});
+
+</script>

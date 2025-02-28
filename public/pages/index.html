@@ -1,0 +1,60 @@
+<style>
+	.CLASS h2 { font-size: 28px; }
+	.CLASS figure { height: 100%; height: 160px; margin-bottom: var(--gap); }
+	.CLASS figure button { width: 90%; height: 90%; border: 0; background-color: #F8F8F8; font-size: 12px; border-radius: 5px; margin: 5% 0 0 10%; }
+	.CLASS figure button:hover { background-color: #F0F0F0; }
+	.CLASS figure button i { font-size: 30px; display: block; margin-bottom: 15px; }
+	.CLASS figure button.highlight { background-color: #E8F4FF; }
+	.CLASS figure button.highlight:hover { background-color: #d2eaff; }
+</style>
+
+<ui-plugin config="aclass:1">
+	<ui-component name="viewbox" path="common.tabs" config="parent:window;centered:1;margin:60;scrollbarshadow:1">
+		<div style="width:100%;max-width:800px;margin:0 auto;text-align:left">
+
+			<br />
+			<h2 class="center"><ui-bind path="document.title" config="text"></ui-bind></h2>
+			<ui-bind path="?.plugins" config="template:figure" class="apps grid-4">
+				<script type="text/html">
+					{{ foreach m in value }}
+					<figure>
+						<button class="exec{{ if m.type === 'app' }} highlight{{ fi }}" data-exec="?/open" data-id="{{ m.url }}"><i class="{{ m.icon }}"></i><span>{{ m.name }}</span></button>
+					</figure>
+					{{ end }}
+				</script>
+			</ui-bind>
+			<br />
+
+		</div>
+	</ui-component>
+</ui-plugin>
+
+<script>
+
+	PLUGIN(function(exports) {
+
+		exports.refresh = function() {
+
+			var items = common.apps.slice(0);
+			for (var m of common.plugins)
+				items.push(m);
+
+			exports.set('plugins', items);
+
+			setTimeout(function() {
+				if (common.focused === 'home' && NAV.url !== '/')
+					REDIRECT('/');
+			}, 500);
+
+		};
+
+		exports.open = function(el) {
+			var id = ATTRD(el);
+			REDIRECT(id);
+		};
+
+		exports.refresh();
+
+	});
+
+</script>

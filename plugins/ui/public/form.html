@@ -1,0 +1,62 @@
+<ui-component name="miniform" path="common.form" config="if:~PATH~;title:@(Create page);icon:ti ti-pencil-paintbrush color;autofocus:true;reload:?/reload;submit:?/submit;width:400" class="hidden ~PATH~" plugin="~PATH~">
+	<div class="padding">
+		<div class="m">
+			<ui-component name="input" path="?.typeid" config="dirsource:#uitemplates;required:1" default="'app'">@(Type)</ui-component>
+		</div>
+		<div class="m">
+			<ui-component name="input" path="?.name" config="required:1" default="''">@(Name)</ui-component>
+		</div>
+		<div class="m">
+			<ui-component name="input" path="?.group" config="dirsource:?.groups;dircustom:1;dirplaceholder:@(Search or create new)">@(Category)</ui-component>
+		</div>
+		<div class="grid-2">
+			<div class="m">
+				<ui-component name="input" path="?.icon" config="required:1;type:icon" default="'ti ti-rocket'">@(Icon)</ui-component>
+			</div>
+			<div class="m">
+				<ui-component name="input" path="?.color" config="type:color" default="''">@(Color)</ui-component>
+			</div>
+		</div>
+	</div>
+	<nav>
+		<ui-component name="validate" path="?">
+			<button name="submit" disabled><i class="ti ti-check-circle"></i>@(SUBMIT)</button>
+			<button name="cancel">@(Cancel)</button>
+		</ui-component>
+	</nav>
+</ui-component>
+
+<script>
+
+	PLUGIN(function(exports) {
+
+		exports.reload = function() {
+			exports.tapi('ui_templates', '#uitemplates');
+		};
+
+		exports.submit = function(hide) {
+			var model = exports.model;
+			exports.tapi('ui_templates_read ERROR', { id: model.typeid }, function(response) {
+
+				hide();
+
+				response = response.editor;
+				response.id = Date.now().toString(36) + GUID(5);
+				response.name = model.name;
+				response.icon = model.icon;
+				response.group = model.group;
+				response.color = model.color;
+
+				if (!response.editor)
+					response.editor = {};
+
+				response.editor.autopublish = true;
+				response.editor.compile = true;
+
+				model.callback(response);
+			});
+		};
+
+	});
+
+</script>

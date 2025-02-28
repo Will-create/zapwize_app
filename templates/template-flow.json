@@ -1,0 +1,22 @@
+{
+	"id": "",
+	"name": "Flow Template",
+	"reference": "",
+	"author": "Total.js",
+	"group": "",
+	"icon": "ti ti-totaljs",
+	"color": "#4285F4",
+	"version": "1",
+	"readme": "",
+	"url": "https://www.totaljs.com",
+	"paused": false,
+	"components": {},
+	"design": {},
+	"variables": {},
+	"sources": {},
+	"proxypath": "",
+	"dtcreated": null,
+	"worker": "fork",
+	"import": "/definitions/db.js,flow-db.js",
+	"size": 0
+}

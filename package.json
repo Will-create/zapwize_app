@@ -1,0 +1,25 @@
+{
+  "name": "tas",
+  "version": "10.0.0",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/total-enterprise/tas"
+  },
+  "dependencies": {
+    "querybuilderpg": "^1.0.24",
+    "total5": "latest"
+  },
+  "scripts": {
+    "start": "node index.js 8000"
+  },
+  "keywords": [
+    "tas",
+    "app maker",
+    "maker"
+  ],
+  "author": "Total.js",
+  "contributors": [
+    "Peter Širka"
+  ]
+}

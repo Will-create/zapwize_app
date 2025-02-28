@@ -1,0 +1,14 @@
+<div class="CLASS"></div>
+
+<script>
+
+	PLUGIN(function(exports) {
+		exports.init = function() {
+			ADD({ name: 'uistudio', config: { url: QUERIFY('/stream/ui{0}/'.format(NAV.params[0]), { openplatform: NAV.query.openplatform }) }, element: $('.CLASS') });
+		};
+		exports.destroy = function() {
+			delete W[exports.name];
+		};
+	});
+
+</script>
